@@ -4,11 +4,67 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache%20License%202.0-blue)](https://www.apache.org/licenses/LICENSE-2.0) [![Python 3.10](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/) 
 
-Prepare **OpenR1** data from
-[Elliott/Openr1-Math-46k-8192](https://huggingface.co/datasets/Elliott/Openr1-Math-46k-8192)
-for SFT, DPO, and **image-based GRPO**. Start by converting OpenR1 questions
-into images, then generate responses and export training data. Model training
-uses the external repositories listed below.
+**TIGER** (**T**ext-to-**I**mage **G**ap-targeted training for **E**nhanced
+**R**easoning) addresses the **reasoning-access gap**: a multimodal model may
+read a problem in an image correctly yet fail to apply the reasoning ability
+it already demonstrates on the same problem in text. TIGER turns text-only
+reasoning data into targeted visual training examples by finding problems
+the model solves from text but fails to solve from images. It then uses
+image-conditioned training to improve access to that reasoning ability.
+
+## Pipeline Overview
+
+<p align="center">
+  <img src="assets/tiger_pipeline.png" alt="TIGER pipeline: render text problems as images, generate and verify responses in both modalities, retain text-correct/image-incorrect examples, and train on image inputs with GRPO or SFT and DPO variants." width="100%">
+</p>
+
+*TIGER has two stages: gap-targeted data construction and gap-targeted training.
+GRPO is the primary training objective; SFT and DPO are comparison variants
+using the same selected problems.*
+
+### Stage 1: Gap-Targeted Data Construction
+
+We start from text-only math problems with ground-truth answers, using
+[Elliott/Openr1-Math-46k-8192](https://huggingface.co/datasets/Elliott/Openr1-Math-46k-8192). Each problem is rendered as an image, preserving its
+content while changing the input modality.
+
+1. **Generate paired responses.** Query the same base model separately with
+   the original text and the rendered image, using greedy decoding.
+2. **Verify final answers.** Check both responses against the problem's
+   ground-truth answer with Math-Verify.
+3. **Mine modality counterfactuals.** Retain only problems with a **correct
+   text-conditioned answer and an incorrect image-conditioned answer**.
+   These examples target failures on visual inputs where the model has
+   already demonstrated that it can solve the underlying problem from text.
+
+Each retained example contains the image, the correct text-conditioned
+response, the incorrect image-conditioned response, and the ground-truth
+answer. The selected subset depends on the base model used to generate the
+responses. See [Steps 1–3](#1-convert-openr1-questions-into-images) for data
+preparation, paired generation, and filtering.
+
+### Stage 2: Gap-Targeted Training
+
+All three training objectives use the **image input** from the selected
+problems, but use the available supervision differently:
+
+| Objective | Supervision | Training behavior |
+| --- | --- | --- |
+| **GRPO (primary)** | Image prompts and ground-truth answers | Sample groups of new image-conditioned responses and optimize rewards for answer correctness and output format. |
+| **SFT** | Image prompts paired with correct text-conditioned responses | Learn to produce the successful response from the image input. |
+| **DPO** | Image prompts with correct text responses as `chosen` and incorrect image responses as `rejected` | Learn to prefer the successful response over the model's visual failure. |
+
+GRPO uses the mined examples as a pool of image prompts and generates new
+responses during training; it does not require imitating the saved
+text-conditioned responses. SFT and DPO instead learn from those saved
+responses. These are alternative training objectives on the same selected
+data, rather than a sequence of SFT, DPO, and GRPO stages.
+
+This repository implements data preparation, response generation, filtering,
+and training-data export. [Step 4](#4-export-sft-and-grpo) exports the selected
+data; [Step 5](#5-training-with-external-repositories) links the external
+training implementations, and [Step 6](#6-real-world-benchmark-evaluation)
+describes the evaluation toolkit.
 
 ## Code Layout
 
@@ -57,7 +113,7 @@ vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8001
 ```
 
 Adjust the server options for your hardware and model. We use
-**temperature 0** for both text-only and image-only data generation:
+**greedy decoding** for both text-only and image-only data generation:
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:8001/v1
