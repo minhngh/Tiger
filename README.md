@@ -2,7 +2,7 @@
 
 **TIGER | NeurIPS 2026**
 
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache%20License%202.0-blue)](https://www.apache.org/licenses/LICENSE-2.0) [![Python 3.10](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/) 
+[![Paper](https://img.shields.io/badge/Paper-arXiv-blue)](https://arxiv.org/pdf/2611.10552) [![License: Apache-2.0](https://img.shields.io/badge/license-Apache%20License%202.0-blue)](https://www.apache.org/licenses/LICENSE-2.0) [![Python 3.10](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
 **TIGER** (**T**ext-to-**I**mage **G**ap-targeted training for **E**nhanced
 **R**easoning) addresses the **reasoning-access gap**: a multimodal model may
